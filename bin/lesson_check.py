@@ -214,12 +214,12 @@ def check_config(reporter):
     reporter.check_field(CONFIG["config_file"], 'configuration', CONFIG, 'title')
     reporter.check_field(CONFIG["config_file"], 'configuration', CONFIG, 'email')
 
+    error_text = 'incorrect settings for: root "{0}" layout "{1}"'
     for defaults in [
             {'values': {'root': '.', 'layout': 'page'}},
             {'values': {'root': '..', 'layout': 'episode'}, 'scope': {'type': 'episodes', 'path': ''}},
             {'values': {'root': '..', 'layout': 'page'}, 'scope': {'type': 'extras', 'path': ''}}
             ]:
-        error_text = 'incorrect settings for: root "{0}" layout "{1}"'
         root = defaults["values"]["root"]
         layout = defaults["values"]["layout"]
         error_message = error_text.format(root, layout)
@@ -236,8 +236,7 @@ def check_source_rmd(reporter, source_dir, parser):
     for pat in episode_rmd_files:
         for f in glob.glob(pat):
             data = read_markdown(parser, f)
-            dy = data['metadata']
-            if dy:
+            if dy := data['metadata']:
                 reporter.check_field(f, 'episode_rmd',
                                      dy, 'source', 'Rmd')
 
@@ -310,8 +309,7 @@ def read_all_markdown(source_dir, parser):
     result = {}
     for pat in all_patterns:
         for filename in glob.glob(pat):
-            data = read_markdown(parser, filename)
-            if data:
+            if data := read_markdown(parser, filename):
                 result[filename] = data
     return result
 
@@ -360,10 +358,14 @@ def check_fileset(source_dir, reporter, filenames_present):
 def create_checker(args, filename, info):
     """Create appropriate checker for file."""
 
-    for (pat, cls) in CHECKERS:
-        if pat.search(filename):
-            return cls(args, filename, **info)
-    return NotImplemented
+    return next(
+        (
+            cls(args, filename, **info)
+            for pat, cls in CHECKERS
+            if pat.search(filename)
+        ),
+        NotImplemented,
+    )
 
 class CheckBase:
     """Base class for checking Markdown files."""
@@ -407,15 +409,11 @@ class CheckBase:
         """Check the raw text of the lesson body."""
 
         if self.args.line_lengths:
-            over_limit = []
-
-            for (i, l, n) in self.lines:
-                # Report lines that are longer than the suggested
-                # line length limit only if they're not
-                # link-only or image-only lines.
-                if n > MAX_LINE_LEN and not P_LINK_IMAGE_LINE.match(l):
-                    over_limit.append(i)
-
+            over_limit = [
+                i
+                for i, l, n in self.lines
+                if n > MAX_LINE_LEN and not P_LINK_IMAGE_LINE.match(l)
+            ]
             self.reporter.check(not over_limit,
                                 self.filename,
                                 'Line(s) too long: {0}',
